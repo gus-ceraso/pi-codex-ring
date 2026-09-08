@@ -12,6 +12,8 @@ import {
 	updateFooter,
 } from "./commands.ts";
 import { loadConfig, STATE_FILE_NAME } from "./config.ts";
+import { registerImageTool } from "./image-tool.ts";
+import { ImagesClient } from "./images-client.ts";
 import { registerRingProviders } from "./providers.ts";
 import { RingRouter } from "./router.ts";
 import { StateStore } from "./state.ts";
@@ -39,6 +41,7 @@ export default async function codexRingExtension(pi: ExtensionAPI): Promise<void
 	await store.initialize();
 	let currentContext: ExtensionContext | undefined;
 
+	const imagesClient = new ImagesClient();
 	const router = new RingRouter(loaded.config, store, {
 		onSwitch(from, to, hardStop) {
 			const message = formatSwitchMessage(from.slot.label, to.slot.label, hardStop);
@@ -57,6 +60,7 @@ export default async function codexRingExtension(pi: ExtensionAPI): Promise<void
 
 	registerRingProviders(pi, loaded.config, router);
 	registerCommands(pi, router, loaded.config);
+	registerImageTool(pi, router, imagesClient, agentDir);
 
 	pi.on("session_start", (_event, ctx) => {
 		currentContext = ctx;
@@ -80,7 +84,7 @@ export default async function codexRingExtension(pi: ExtensionAPI): Promise<void
 
 	pi.on("session_shutdown", async (_event, ctx) => {
 		clearFooter(ctx);
-		await router.shutdown();
+		await Promise.all([router.shutdown(), imagesClient.close()]);
 		currentContext = undefined;
 	});
 }

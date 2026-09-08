@@ -1,6 +1,6 @@
 import { EnvHttpProxyAgent, fetch as undiciFetch, type Dispatcher } from "undici";
 import { parseUsagePayload } from "./quota.ts";
-import type { PollResult, ResolvedAccount } from "./types.ts";
+import { PACKAGE_VERSION, type PollResult, type ResolvedAccount } from "./types.ts";
 
 const MAX_USAGE_BODY_BYTES = 1024 * 1024;
 
@@ -80,7 +80,7 @@ export class UsageClient implements UsagePoller {
 				Authorization: `Bearer ${account.apiKey}`,
 				"Cache-Control": "no-store",
 				"ChatGPT-Account-Id": account.identity.accountId,
-				"User-Agent": "pi-codex-ring/0.1.0",
+				"User-Agent": `pi-codex-ring/${PACKAGE_VERSION}`,
 			});
 			const init: RequestInit & { dispatcher?: Dispatcher } = {
 				method: "GET",

@@ -1,6 +1,6 @@
 # pi-codex-ring
 
-A Pi custom-provider extension that presents multiple OpenAI Codex OAuth logins as one sticky, reset-aware failover ring.
+A Pi package that presents multiple OpenAI Codex OAuth logins as one sticky, reset-aware failover ring. It also provides a subscription-backed `image_gen` tool and an image-generation skill.
 
 ## Requirements
 
@@ -8,7 +8,7 @@ A Pi custom-provider extension that presents multiple OpenAI Codex OAuth logins 
 - Node.js `22.19` or newer
 - ChatGPT/Codex accounts that you are authorized to use
 
-The extension does not create accounts, purchase credits, or bypass plan rules.
+The package does not create accounts, purchase credits, bypass plan rules, or require `OPENAI_API_KEY`.
 
 ## Install
 
@@ -86,6 +86,52 @@ Select the virtual provider:
 
 The exact models mirror the built-in Codex catalog in the installed Pi version.
 
+## Image generation
+
+The globally available `image_gen` tool uses `gpt-image-2` through the same ChatGPT/Codex OAuth accounts:
+
+```json
+{
+  "prompt": "A watercolor red fox reading beside a rainy window"
+}
+```
+
+To edit one to five local images, pass absolute paths:
+
+```json
+{
+  "prompt": "Change only the scarf to deep blue",
+  "referenced_image_paths": ["/absolute/path/to/fox.png"]
+}
+```
+
+To edit pathless images already in the active conversation, use the smallest required count:
+
+```json
+{
+  "prompt": "Keep the composition and make the scarf blue",
+  "num_last_images_to_include": 1
+}
+```
+
+Do not combine the two image selectors. An omitted or empty path list creates a new image. Size, quality, model, output format, masks, and output path are intentionally not tool arguments; they match Codex's fixed built-in defaults.
+
+Generated PNGs appear inline and are saved without overwriting existing files:
+
+```text
+~/.pi/agent/image_gen/<normalized-project-root>/<session-id>/<tool-call-id>.png
+```
+
+For example, `/home/user/app` is normalized to `--home-user-app--`. When `PI_CODING_AGENT_DIR` selects another agent directory, the package uses that directory instead of `~/.pi/agent`.
+
+The bundled `imagegen` skill teaches the model when to use raster generation, how to structure prompts and edits, and when to copy a selected image into the project. It does not include Codex's separate API-key CLI fallback.
+
+### Image failover
+
+Image requests stay on the ring's sticky account. The package replays an image request on another account only after an explicit image/subscription usage-limit response, a feature-entitlement rejection, or a definite authentication rejection. It does not replay network failures, timeouts, 5xx responses, generic throttling, malformed successes, or policy denials because the first request might already have consumed image quota.
+
+Image calls run sequentially to keep account transitions deterministic. Each requested asset or variant still uses a separate tool call.
+
 ## Commands
 
 ```text
@@ -115,7 +161,7 @@ The exact models mirror the built-in Codex catalog in the installed Pi version.
 
 ## Usage tracking
 
-The extension follows the current official Codex client's behavior:
+The package follows the current official Codex client's behavior:
 
 - ChatGPT backend: `GET https://chatgpt.com/backend-api/wham/usage`
 - Codex-style backend: `GET <base>/api/codex/usage`
@@ -127,7 +173,7 @@ The usage endpoint is an authenticated product endpoint, not a promised stable p
 
 ## State and security
 
-OAuth credentials remain exclusively in Pi's `auth.json`. The extension writes only redacted metadata to:
+OAuth credentials remain exclusively in Pi's `auth.json`. The package writes only redacted quota metadata to:
 
 ```text
 ~/.pi/agent/codex-ring-state.json
@@ -136,6 +182,8 @@ OAuth credentials remain exclusively in Pi's `auth.json`. The extension writes o
 The config and state files are restricted to mode `0600`. State writes are atomic and protected by a cross-process lock. Persisted fields include quota windows, reset times, configured slot IDs, and truncated SHA-256 account fingerprints—never bearer tokens, refresh tokens, raw JWTs, email addresses, or raw ChatGPT account/user IDs.
 
 Pi `0.84.2` scopes Codex WebSocket continuation state by authenticated account. The extension additionally tags successful messages with a hashed account diagnostic and strips account-bound response/reasoning IDs before replaying history through another account.
+
+Generated PNG bytes are stored only in Pi's session/tool result and the documented image artifact path. Base64 image payloads are not copied into ring state, logs, or tool-result details.
 
 ## Troubleshooting
 
@@ -166,12 +214,20 @@ If the server reports availability but stale local state remains, use `/codex-ri
 
 Both provider aliases resolved to the same authenticated user/workspace fingerprint. Log one alias into a different authorized account.
 
+### `image_gen` is unavailable
+
+Confirm the package resource is enabled and restart or `/reload` Pi after installation. `pi list` should show the package, and `/skill:imagegen` should load the bundled skill when skill commands are enabled.
+
+### An image was displayed but not saved
+
+The endpoint succeeded, but local persistence failed. The tool result reports the save error and does not regenerate the image. Check permissions and destination collisions below `~/.pi/agent/image_gen/`.
+
 ## Development
 
 ```bash
 npm run verify
 ```
 
-Tests use fake OAuth tokens, local responses, and deterministic streams. They do not require live OpenAI credentials or consume subscription quota.
+Automated tests use fake OAuth tokens, local responses, and deterministic streams. They do not require live OpenAI credentials or consume subscription quota.
 
 See [`PLAN.md`](PLAN.md) for architecture, research, failure policy, risks, and pinned source references.

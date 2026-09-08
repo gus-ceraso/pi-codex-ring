@@ -1,7 +1,7 @@
 {
   "name": "pi-codex-ring",
-  "version": "0.1.0",
-  "description": "Sticky failover ring for multiple OpenAI Codex OAuth accounts in Pi",
+  "version": "0.2.0",
+  "description": "OpenAI Codex OAuth account ring and subscription-backed image generation for Pi",
   "type": "module",
   "license": "CC0-1.0",
   "keywords": [
@@ -10,7 +10,8 @@
     "codex",
     "openai",
     "oauth",
-    "failover"
+    "failover",
+    "image-generation"
   ],
   "engines": {
     "node": ">=22.19.0"
@@ -19,11 +20,16 @@
     "src",
     "README.md",
     "LICENSE",
-    "PLAN.md"
+    "PLAN.md",
+    "AGENTS.md",
+    "skills"
   ],
   "pi": {
     "extensions": [
       "./src/index.ts"
+    ],
+    "skills": [
+      "./skills"
     ]
   },
   "scripts": {

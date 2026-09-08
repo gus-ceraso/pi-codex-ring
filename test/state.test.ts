@@ -43,6 +43,32 @@ describe("quota state", () => {
 		expect(accountAvailability(account, "model", 3_000_001, 300_000).kind).toBe("probe_needed");
 	});
 
+	it("stores additional image exhaustion without blocking the whole account", () => {
+		const observation = parseUsagePayload({
+			rate_limit: { allowed: true, limit_reached: false },
+			additional_rate_limits: [{
+				metered_feature: "image_gen",
+				rate_limit: {
+					allowed: false,
+					limit_reached: true,
+					primary_window: { used_percent: 100, reset_at: 2_000 },
+				},
+			}],
+		}, 1_000);
+		const account = mergeObservation(emptyAccountState("i".repeat(24)), observation, {
+			allowClear: true,
+			recordHardStop: true,
+		});
+		expect(account.hardStop).toBeUndefined();
+		expect(account.modelBlocks.image_gen).toMatchObject({
+			modelId: "image_gen",
+			limitId: "image_gen",
+			resetAt: 2_000_000,
+		});
+		expect(accountAvailability(account, "gpt-5.4", 1_100, 300_000).kind).toBe("eligible");
+		expect(accountAvailability(account, "image_gen", 1_100, 300_000).kind).toBe("blocked");
+	});
+
 	it("does not let stale observations clear a newer hard stop", () => {
 		const fingerprint = "b".repeat(24);
 		const account = emptyAccountState(fingerprint);

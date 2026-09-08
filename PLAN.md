@@ -1,8 +1,20 @@
 # Codex Account Ring Extension — Implementation Plan
 
-**Status:** Draft for review  
+**Status:** v0.2 implemented and validated; pending commit, push, and global package replacement
 **Target:** Pi `0.84.2`, Node.js `>=22.19`  
-**Proposed package name:** `pi-codex-ring`
+**Package name:** `pi-codex-ring`
+
+## v0.2 image-generation addendum
+
+The package now also owns:
+
+- a global `image_gen` tool matching Codex's prompt, local-path edit, and recent-conversation-image edit modes;
+- the subscription endpoints `/backend-api/codex/images/generations` and `/images/edits` with fixed `gpt-image-2` auto defaults;
+- narrow, non-replaying failover through the existing ring;
+- exclusive PNG persistence at `<agent-dir>/image_gen/<normalized-cwd>/<session-id>/<tool-call-id>.png`;
+- an adapted `imagegen` Pi skill for raster-versus-code-native selection, prompt shaping, edit invariants, iteration, and project-asset handling.
+
+The adapted skill deliberately omits Codex's API-key CLI fallback. Image quota stops remain resource-specific under `modelBlocks.image_gen`; ambiguous failures never trigger another image POST. Automated tests use mock responses. Live validation completed with one generation and one recent-conversation-image edit; both returned inline PNGs and saved distinct artifacts in the required directory. Commit, push, and replacement of the globally installed Git revision follow validation.
 
 ## 1. Goal
 

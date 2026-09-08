@@ -23,6 +23,7 @@ import {
 import { classifyFailure, normalizeTransientRateLimitMessage } from "./errors.ts";
 import {
 	buildHardStop,
+	hardStopsFromObservation,
 	observationHasHardStop,
 	parseCapturedHttpError,
 	parseRateLimitHeaders,
@@ -77,6 +78,27 @@ interface FailureStateResult {
 interface RouteOptions {
 	simple: boolean;
 	options?: StreamOptions | SimpleStreamOptions;
+}
+
+interface SelectionTarget {
+	resourceId: string;
+	baseUrl?: string;
+	recordProbeHardStop: boolean;
+}
+
+export interface AccountOperationFailure {
+	kind: "usage_limit" | "usage_not_included" | "auth" | "other";
+	limitId?: string;
+	resetAt?: number;
+	reason?: string;
+}
+
+export interface AccountOperation<T> {
+	resourceId: string;
+	signal?: AbortSignal;
+	execute(account: ResolvedAccount, baseUrl: string, signal: AbortSignal): Promise<T>;
+	classify(error: unknown): AccountOperationFailure;
+	observation?(result: T): QuotaObservation | undefined;
 }
 
 const MAX_ERROR_BODY_BYTES = 64 * 1024;
@@ -194,14 +216,18 @@ function isSwitchable(classification: FailureClassification): boolean {
 	return classification.kind === "usage_limit" || classification.kind === "usage_not_included" || classification.kind === "auth";
 }
 
-function observationExplicitlyAllowsRequests(observation: QuotaObservation): boolean {
+function observationExplicitlyAllowsLimit(observation: QuotaObservation, limitId: string): boolean {
 	if (observation.source !== "usage_endpoint" || observation.rateLimitReachedType) return false;
-	const base = observation.limits.find((limit) => limit.limitId === "codex");
+	const limit = observation.limits.find((entry) => entry.limitId === limitId);
 	return (
-		base?.allowed === true &&
-		base.limitReached !== true &&
-		base.spendControl?.reached !== true
+		limit?.allowed === true &&
+		limit.limitReached !== true &&
+		limit.spendControl?.reached !== true
 	);
+}
+
+function observationExplicitlyAllowsRequests(observation: QuotaObservation): boolean {
+	return observationExplicitlyAllowsLimit(observation, "codex");
 }
 
 export class RingRouter {
@@ -261,6 +287,77 @@ export class RingRouter {
 		options?: SimpleStreamOptions,
 	): AssistantMessageEventStream {
 		return this.route(model, context, { simple: true, ...(options ? { options } : {}) });
+	}
+
+	async runAccountOperation<T>(operation: AccountOperation<T>): Promise<T> {
+		if (!this.registry) throw new Error("Codex ring has not been bound to a Pi session");
+		const signal = AbortSignal.any([
+			this.sessionAbort.signal,
+			...(operation.signal ? [operation.signal] : []),
+		]);
+		if (signal.aborted) throw new Error("Request was aborted");
+		const resolutions = await this.resolveAccounts(signal);
+		const tried = new Set<number>();
+		let pendingSwitch: { from: ResolvedAccount; hardStop: HardStop } | undefined;
+
+		while (tried.size < this.config.accounts.length) {
+			if (signal.aborted) throw new Error("Request was aborted");
+			const selected = await this.selectAccount(
+				resolutions,
+				tried,
+				{ resourceId: operation.resourceId, recordProbeHardStop: true },
+				signal,
+			);
+			if (!selected) throw new Error(this.unavailableMessage(resolutions, operation.resourceId));
+			const account = selected.account;
+			if (pendingSwitch && pendingSwitch.from.slot.id !== account.slot.id) {
+				this.hooks.onSwitch?.(pendingSwitch.from, account, pendingSwitch.hardStop);
+				pendingSwitch = undefined;
+			}
+			const baseUrl = this.accountBaseUrl(account);
+			try {
+				const result = await operation.execute(account, baseUrl, signal);
+				const observation = operation.observation?.(result);
+				if (observation) await this.observeHeaders(account, observation);
+				this.recordSuccess(account, selected.resolution.index, baseUrl);
+				return result;
+			} catch (error) {
+				if (signal.aborted) throw error;
+				const classification = operation.classify(error);
+				if (classification.kind === "other") throw error;
+				let hardStop: HardStop;
+				if (classification.kind === "auth") {
+					this.authRejectedSlots.add(account.slot.id);
+					this.authErrors.set(account.slot.id, "OAuth credential was rejected; run /login again");
+					hardStop = buildHardStop(undefined, { kind: "unknown", reason: "Authentication unavailable" });
+				} else {
+					let observation: QuotaObservation | undefined;
+					if (classification.kind === "usage_limit") {
+						const poll = await this.pollAccount(account, baseUrl, {
+							allowClear: false,
+							recordHardStop: false,
+							signal,
+						});
+						if (poll.ok) observation = poll.observation;
+					}
+					const accountWide = classification.limitId === "codex";
+					hardStop = buildHardStop(observation, {
+						kind: classification.kind,
+						...(!accountWide ? { modelId: operation.resourceId } : {}),
+						...(classification.limitId ? { limitId: classification.limitId } : {}),
+						...(classification.resetAt !== undefined ? { resetAt: classification.resetAt } : {}),
+						...(classification.reason ? { reason: classification.reason } : {}),
+					});
+					this.setRuntimeHardStop(account.identity.fingerprint, hardStop);
+					await this.persistHardStop(account, hardStop);
+				}
+				if (this.session.mode.type === "force") throw error;
+				tried.add(selected.resolution.index);
+				this.session.cursor = (selected.resolution.index + 1) % this.config.accounts.length;
+				pendingSwitch = { from: account, hardStop };
+			}
+		}
+		throw new Error(this.unavailableMessage(resolutions, operation.resourceId));
 	}
 
 	get mode(): RingMode {
@@ -412,7 +509,7 @@ export class RingRouter {
 			const selected = await this.selectAccount(
 				resolutions,
 				tried,
-				model,
+				{ resourceId: model.id, baseUrl: model.baseUrl, recordProbeHardStop: true },
 				signal,
 				routeOptions.options?.env,
 			);
@@ -668,7 +765,7 @@ export class RingRouter {
 	private async selectAccount(
 		resolutions: AccountResolution[],
 		tried: Set<number>,
-		model: Model<"openai-codex-responses">,
+		target: SelectionTarget,
 		signal?: AbortSignal,
 		requestEnv?: Record<string, string>,
 	): Promise<SelectedAccount | undefined> {
@@ -695,19 +792,19 @@ export class RingRouter {
 				signal?.aborted
 			) continue;
 			let state = this.effectiveState(account.identity.fingerprint, snapshot.accounts[account.identity.fingerprint]);
-			let availability = accountAvailability(state, model.id, Date.now(), this.config.unknownResetRetryMs);
+			let availability = accountAvailability(state, target.resourceId, Date.now(), this.config.unknownResetRetryMs);
 			if (availability.kind === "blocked") continue;
 			if (availability.kind === "probe_needed") {
 				const pollingAccount = this.withRequestEnv(account, requestEnv);
-				const result = await this.pollAccount(pollingAccount, this.accountBaseUrl(account, model.baseUrl), {
+				const result = await this.pollAccount(pollingAccount, this.accountBaseUrl(account, target.baseUrl), {
 					allowClear: true,
-					recordHardStop: true,
+					recordHardStop: target.recordProbeHardStop,
 					...(signal ? { signal } : {}),
 				});
 				if (result.ok) {
 					const refreshed = this.store.snapshot();
 					state = this.effectiveState(account.identity.fingerprint, refreshed.accounts[account.identity.fingerprint]);
-					availability = accountAvailability(state, model.id, Date.now(), this.config.unknownResetRetryMs);
+					availability = accountAvailability(state, target.resourceId, Date.now(), this.config.unknownResetRetryMs);
 					if (availability.kind === "blocked") continue;
 				}
 			}
@@ -792,12 +889,25 @@ export class RingRouter {
 		const result = await operation;
 		if (!result.ok) return result;
 		const observation = result.observation;
-		if (options.recordHardStop && observationHasHardStop(observation)) {
-			const stop = buildHardStop(observation, { kind: "endpoint_hard_stop" });
-			this.runtimeStops.set(fingerprint, stop);
-		} else if (options.allowClear && observationExplicitlyAllowsRequests(observation)) {
+		if (options.recordHardStop) {
+			for (const stop of hardStopsFromObservation(observation)) {
+				this.setRuntimeHardStop(fingerprint, stop);
+			}
+		}
+		if (options.allowClear && observationExplicitlyAllowsRequests(observation)) {
 			const stop = this.runtimeStops.get(fingerprint);
 			if (stop && observation.observedAt > stop.observedAt) this.runtimeStops.delete(fingerprint);
+		}
+		if (options.allowClear) {
+			const blocks = this.runtimeModelStops.get(fingerprint);
+			for (const [modelId, stop] of blocks ?? []) {
+				const limitId = stop.limitId ?? modelId;
+				if (
+					observation.observedAt > stop.observedAt &&
+					observationExplicitlyAllowsLimit(observation, limitId)
+				) blocks?.delete(modelId);
+			}
+			if (blocks?.size === 0) this.runtimeModelStops.delete(fingerprint);
 		}
 		await this.store
 			.applyObservation(account.slot.id, fingerprint, observation, {

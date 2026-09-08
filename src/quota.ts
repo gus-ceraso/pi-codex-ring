@@ -365,6 +365,24 @@ export function observationHasHardStop(observation: QuotaObservation): boolean {
 	);
 }
 
+function limitHasHardStop(limit: LimitSnapshot): boolean {
+	return limit.allowed === false || limit.limitReached === true || limit.spendControl?.reached === true;
+}
+
+export function hardStopsFromObservation(observation: QuotaObservation): HardStop[] {
+	const blocked = observation.limits.filter(limitHasHardStop);
+	if (blocked.length === 0) {
+		return observation.rateLimitReachedType
+			? [buildHardStop(observation, { kind: "endpoint_hard_stop" })]
+			: [];
+	}
+	return blocked.map((limit) => buildHardStop(observation, {
+		kind: "endpoint_hard_stop",
+		limitId: limit.limitId,
+		...(limit.limitId !== "codex" ? { modelId: limit.limitId } : {}),
+	}));
+}
+
 function inferHardStopKind(observation: QuotaObservation, fallback: HardStopKind): HardStopKind {
 	const reached = observation.rateLimitReachedType?.toLowerCase() ?? "";
 	if (reached.includes("credits_depleted")) return "credits_depleted";

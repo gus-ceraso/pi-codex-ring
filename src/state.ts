@@ -1,7 +1,7 @@
 import { chmod, mkdir, open, readFile, rename, stat, unlink } from "node:fs/promises";
 import { dirname } from "node:path";
 import lockfile from "proper-lockfile";
-import { buildHardStop, observationHasHardStop } from "./quota.ts";
+import { hardStopsFromObservation } from "./quota.ts";
 import {
 	emptyAccountState,
 	emptyRingState,
@@ -218,13 +218,19 @@ export function mergeObservation(
 	next.lastObservedAt = observation.observedAt;
 	if (observation.source === "usage_endpoint") next.lastPollAt = observation.observedAt;
 
-	if (options.recordHardStop && observationHasHardStop(observation)) {
-		const hardStop = buildHardStop(observation, {
-			kind: "endpoint_hard_stop",
-			observedAt: observation.observedAt,
-		});
-		if (!next.hardStop || hardStop.observedAt >= next.hardStop.observedAt) next.hardStop = hardStop;
-	} else if (
+	if (options.recordHardStop) {
+		for (const hardStop of hardStopsFromObservation(observation)) {
+			if (hardStop.modelId) {
+				const current = next.modelBlocks[hardStop.modelId];
+				if (!current || hardStop.observedAt >= current.observedAt) {
+					next.modelBlocks[hardStop.modelId] = hardStop;
+				}
+			} else if (!next.hardStop || hardStop.observedAt >= next.hardStop.observedAt) {
+				next.hardStop = hardStop;
+			}
+		}
+	}
+	if (
 		options.allowClear &&
 		next.hardStop &&
 		observation.observedAt > next.hardStop.observedAt &&
