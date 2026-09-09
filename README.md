@@ -88,11 +88,28 @@ The exact models mirror the built-in Codex catalog in the installed Pi version.
 
 ## Image generation
 
-The globally available `image_gen` tool uses `gpt-image-2` through the same ChatGPT/Codex OAuth accounts:
+The globally available `image_gen` tool uses GPT Image 2.5 through the same ChatGPT/Codex OAuth accounts. The agent selects the image model for each call; omitting `model` uses Flare:
 
 ```json
 {
   "prompt": "A watercolor red fox reading beside a rainy window"
+}
+```
+
+The accepted, live-tested models are:
+
+| Model | Use |
+|---|---|
+| `gpt-image-2.5-flare-2026-09-08` | Default for fast, high-quality everyday generation and editing |
+| `gpt-image-2.5-sunburst-2026-09-08` | Maximum precision for polished generation and exact or multi-step edits |
+
+A user can request either model explicitly. Otherwise, the agent uses Sunburst when precision materially matters and Flare for most work:
+
+```json
+{
+  "prompt": "Preserve every product detail while replacing only the label typography",
+  "model": "gpt-image-2.5-sunburst-2026-09-08",
+  "referenced_image_paths": ["/absolute/path/to/product.png"]
 }
 ```
 
@@ -114,7 +131,7 @@ To edit pathless images already in the active conversation, use the smallest req
 }
 ```
 
-Do not combine the two image selectors. An omitted or empty path list creates a new image. Size, quality, model, output format, masks, and output path are intentionally not tool arguments; they match Codex's fixed built-in defaults.
+Do not combine the two image selectors. An omitted or empty path list creates a new image. `model` is optional and strictly limited to the two IDs above. Size, quality, output format, masks, and output path are intentionally not tool arguments; they use the Codex endpoint's automatic defaults.
 
 Generated PNGs appear inline and are saved without overwriting existing files:
 

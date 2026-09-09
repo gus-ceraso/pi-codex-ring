@@ -1,4 +1,4 @@
-import { Type } from "@earendil-works/pi-ai";
+import { StringEnum, Type } from "@earendil-works/pi-ai";
 import {
 	defineTool,
 	type ExtensionAPI,
@@ -8,9 +8,12 @@ import { sanitizeErrorMessage } from "./account.ts";
 import { imageArtifactPath, saveImageArtifact } from "./image-artifact.ts";
 import { localImageDataUrls, recentImageDataUrls } from "./image-input.ts";
 import {
+	DEFAULT_IMAGE_MODEL,
+	IMAGE_MODELS,
 	IMAGE_RESOURCE_ID,
 	ImageRequestError,
 	type GeneratedImage,
+	type ImageModel,
 	type ImagesClient,
 } from "./images-client.ts";
 import type { AccountOperationFailure, RingRouter } from "./router.ts";
@@ -20,6 +23,10 @@ const ImageToolParameters = Type.Object(
 		prompt: Type.String({
 			description: "A detailed description of the image to generate or the edits to make.",
 		}),
+		model: Type.Optional(StringEnum(IMAGE_MODELS, {
+			description: "Image model. Omit for gpt-image-2.5-flare-2026-09-08, the fast default for most work. Use gpt-image-2.5-sunburst-2026-09-08 for maximum generation and editing precision.",
+			default: DEFAULT_IMAGE_MODEL,
+		})),
 		referenced_image_paths: Type.Optional(Type.Array(Type.String(), {
 			description: "Absolute paths to up to five local images to edit. Omit when generating a new image or using recent conversation images.",
 			maxItems: 5,
@@ -38,9 +45,10 @@ export interface ImageToolDetails {
 	saveWarning?: string;
 	submittedPrompt: string;
 	operation: "generate" | "edit";
+	model: ImageModel;
 	referencedImageCount: number;
 	background?: "transparent" | "opaque" | "auto";
-	quality?: "low" | "medium" | "high" | "auto";
+	quality?: "low" | "medium" | "high" | "xhigh" | "max" | "auto";
 	size?: string;
 	requestId?: string;
 }
@@ -109,17 +117,19 @@ export function createImageTool(
 	return defineTool({
 		name: "image_gen",
 		label: "Image generation",
-		description: "Generate a new image or edit existing images with OpenAI image generation. To generate a new image, provide only prompt. To edit local files, provide referenced_image_paths with up to five absolute paths. To edit recent conversation images, provide num_last_images_to_include. Never combine the two selectors. Prefer absolute paths when stable files exist. For multiple assets or variants, call image_gen once per image. Generated PNGs are returned inline and saved automatically; there is no output-path argument.",
-		promptSnippet: "Generate or edit raster images with OpenAI image generation",
+		description: "Generate a new image or edit existing images with OpenAI image generation. The optional model defaults to Flare; select Sunburst for maximum precision. To generate a new image, omit both image selectors. To edit local files, provide referenced_image_paths with up to five absolute paths. To edit recent conversation images, provide num_last_images_to_include. Never combine the two selectors. Prefer absolute paths when stable files exist. For multiple assets or variants, call image_gen once per image. Generated PNGs are returned inline and saved automatically; there is no output-path argument.",
+		promptSnippet: "Generate or edit raster images with selectable OpenAI image models",
 		promptGuidelines: [
 			"Use image_gen for requested raster image generation and editing; omit both image selectors for a new image.",
+			"For image_gen, omit model to use gpt-image-2.5-flare-2026-09-08 for most work; select gpt-image-2.5-sunburst-2026-09-08 when maximum generation or editing precision matters.",
 			"For image_gen edits, use referenced_image_paths for stable absolute paths, or num_last_images_to_include for recent pathless images, but never both.",
-			"Use one image_gen call per requested asset or variant, and do not reconfirm unless a required input image is missing.",
+			"Use one image_gen call per requested asset or variant, and do not reconfirm unless a required image is missing.",
 		],
 		parameters: ImageToolParameters,
 		executionMode: "sequential",
 
 		async execute(toolCallId, params, signal, _onUpdate, ctx) {
+			const model = params.model ?? DEFAULT_IMAGE_MODEL;
 			const paths = params.referenced_image_paths ?? [];
 			if (paths.length > 0 && params.num_last_images_to_include !== undefined) {
 				throw new Error("provide only one of `referenced_image_paths` or `num_last_images_to_include`");
@@ -141,6 +151,7 @@ export function createImageTool(
 					baseUrl,
 					{
 						prompt: params.prompt,
+						model,
 						...(images ? { images } : {}),
 					},
 					operationSignal,
@@ -168,6 +179,7 @@ export function createImageTool(
 			const details: ImageToolDetails = {
 				submittedPrompt: params.prompt,
 				operation: images ? "edit" : "generate",
+				model,
 				referencedImageCount: images?.length ?? 0,
 				...(savedPath ? { savedPath } : {}),
 				...(saveWarning ? { saveWarning } : {}),

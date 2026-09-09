@@ -48,11 +48,11 @@ describe("Codex images client", () => {
 			.toBe("https://example.test/api/codex/images/generations");
 	});
 
-	it("sends the fixed generation contract with authoritative account headers", async () => {
+	it("sends the selected generation model with authoritative account headers", async () => {
 		const fetch = vi.fn<ImageFetch>(async (_url, _init) => new Response(JSON.stringify({
 			created: 1,
 			background: "transparent",
-			quality: "high",
+			quality: "max",
 			size: "1024x1024",
 			data: [{ b64_json: PNG_BASE64 }],
 		}), {
@@ -60,7 +60,10 @@ describe("Codex images client", () => {
 			headers: { "x-codex-imagegen-request-id": "request-1" },
 		}));
 		const client = new ImagesClient(fetch, 1_000);
-		const result = await client.request(account(), "https://chatgpt.com/backend-api", { prompt: "fox" });
+		const result = await client.request(account(), "https://chatgpt.com/backend-api", {
+			prompt: "fox",
+			model: "gpt-image-2.5-sunburst-2026-09-08",
+		});
 		expect(fetch).toHaveBeenCalledTimes(1);
 		const [url, init] = fetch.mock.calls[0] ?? [];
 		expect(url).toBe("https://chatgpt.com/backend-api/codex/images/generations");
@@ -71,14 +74,14 @@ describe("Codex images client", () => {
 		expect(JSON.parse(String(init?.body))).toEqual({
 			prompt: "fox",
 			background: "auto",
-			model: "gpt-image-2",
+			model: "gpt-image-2.5-sunburst-2026-09-08",
 			quality: "auto",
 			size: "auto",
 		});
 		expect(result.base64).toBe(PNG_BASE64);
 		expect(result.metadata).toEqual({
 			background: "transparent",
-			quality: "high",
+			quality: "max",
 			size: "1024x1024",
 			requestId: "request-1",
 		});
@@ -92,6 +95,7 @@ describe("Codex images client", () => {
 		const client = new ImagesClient(fetch, 1_000);
 		await client.request(account(), "https://chatgpt.com/backend-api", {
 			prompt: "add a hat",
+			model: "gpt-image-2.5-flare-2026-09-08",
 			images: ["data:image/png;base64,AAAA"],
 		});
 		const [url, init] = fetch.mock.calls[0] ?? [];
@@ -113,8 +117,10 @@ describe("Codex images client", () => {
 			status: 429,
 			headers: { "x-codex-active-limit": "image_gen" },
 		}), 1_000);
-		const error = await client.request(account(), "https://chatgpt.com/backend-api", { prompt: "fox" })
-			.catch((value: unknown) => value);
+		const error = await client.request(account(), "https://chatgpt.com/backend-api", {
+			prompt: "fox",
+			model: "gpt-image-2.5-flare-2026-09-08",
+		}).catch((value: unknown) => value);
 		expect(error).toBeInstanceOf(ImageRequestError);
 		expect(error).toMatchObject({
 			kind: "http",
@@ -130,13 +136,17 @@ describe("Codex images client", () => {
 		const invalid = new ImagesClient(async () => new Response(JSON.stringify({
 			data: [{ b64_json: "not base64" }],
 		}), { status: 200 }), 1_000);
-		await expect(invalid.request(account(), "https://chatgpt.com/backend-api", { prompt: "x" }))
-			.rejects.toMatchObject({ kind: "invalid_response" });
+		await expect(invalid.request(account(), "https://chatgpt.com/backend-api", {
+			prompt: "x",
+			model: "gpt-image-2.5-flare-2026-09-08",
+		})).rejects.toMatchObject({ kind: "invalid_response" });
 
 		const nonPng = new ImagesClient(async () => new Response(JSON.stringify({
 			data: [{ b64_json: Buffer.from("hello").toString("base64") }],
 		}), { status: 200 }), 1_000);
-		await expect(nonPng.request(account(), "https://chatgpt.com/backend-api", { prompt: "x" }))
-			.rejects.toThrow("non-PNG");
+		await expect(nonPng.request(account(), "https://chatgpt.com/backend-api", {
+			prompt: "x",
+			model: "gpt-image-2.5-flare-2026-09-08",
+		})).rejects.toThrow("non-PNG");
 	});
 });

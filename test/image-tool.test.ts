@@ -2,10 +2,10 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createImageTool, classifyImageFailure } from "../src/image-tool.js";
 import { ImageRequestError, type GeneratedImage, type ImagesClient } from "../src/images-client.js";
-import type { RingRouter } from "../src/router.js";
+import type { AccountOperation, RingRouter } from "../src/router.js";
 
 const PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 const directories: string[] = [];
@@ -33,6 +33,16 @@ describe("image tool", () => {
 		expect(tool.parameters).toMatchObject({
 			type: "object",
 			required: ["prompt"],
+			properties: {
+				model: {
+					type: "string",
+					enum: [
+						"gpt-image-2.5-flare-2026-09-08",
+						"gpt-image-2.5-sunburst-2026-09-08",
+					],
+					default: "gpt-image-2.5-flare-2026-09-08",
+				},
+			},
 			additionalProperties: false,
 		});
 	});
@@ -58,11 +68,44 @@ describe("image tool", () => {
 			savedPath: expectedPath,
 			submittedPrompt: "a fox",
 			operation: "generate",
+			model: "gpt-image-2.5-flare-2026-09-08",
 			referencedImageCount: 0,
 			background: "transparent",
 		});
 		expect(JSON.stringify(result.details)).not.toContain(PNG_BASE64);
 		expect(await readFile(expectedPath, "base64")).toBe(PNG_BASE64);
+	});
+
+	it("forwards an explicit Sunburst selection", async () => {
+		const agentDir = await mkdtemp(join(tmpdir(), "codex-ring-tool-"));
+		directories.push(agentDir);
+		const generated: GeneratedImage = {
+			base64: PNG_BASE64,
+			bytes: Buffer.from(PNG_BASE64, "base64"),
+			metadata: {},
+		};
+		const request = vi.fn<ImagesClient["request"]>(async () => generated);
+		const router = {
+			async runAccountOperation(operation: AccountOperation<GeneratedImage>) {
+				return operation.execute(
+					{} as never,
+					"https://chatgpt.com/backend-api",
+					new AbortController().signal,
+				);
+			},
+		} as unknown as RingRouter;
+		const tool = createImageTool(router, { request } as unknown as ImagesClient, agentDir);
+		const result = await tool.execute("call-2", {
+			prompt: "a precise fox edit",
+			model: "gpt-image-2.5-sunburst-2026-09-08",
+		}, undefined, undefined, context("/project"));
+
+		expect(request).toHaveBeenCalledTimes(1);
+		expect(request.mock.calls[0]?.[2]).toEqual({
+			prompt: "a precise fox edit",
+			model: "gpt-image-2.5-sunburst-2026-09-08",
+		});
+		expect(result.details.model).toBe("gpt-image-2.5-sunburst-2026-09-08");
 	});
 
 	it("rejects conflicting edit selectors before routing", async () => {

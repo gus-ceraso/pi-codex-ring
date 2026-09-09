@@ -1,6 +1,6 @@
 import type { AuthResult, ProviderEnv } from "@earendil-works/pi-ai";
 
-export const PACKAGE_VERSION = "0.2.0";
+export const PACKAGE_VERSION = "0.3.0";
 export const CONFIG_VERSION = 1 as const;
 export const STATE_VERSION = 1 as const;
 export const BUILTIN_CODEX_PROVIDER_ID = "openai-codex";

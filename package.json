@@ -1,6 +1,6 @@
 {
   "name": "pi-codex-ring",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "OpenAI Codex OAuth account ring and subscription-backed image generation for Pi",
   "type": "module",
   "license": "CC0-1.0",

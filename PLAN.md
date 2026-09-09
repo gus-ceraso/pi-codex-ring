@@ -1,8 +1,14 @@
 # Codex Account Ring Extension — Implementation Plan
 
-**Status:** v0.2 implemented, validated, published, and globally installed
+**Status:** v0.3 implemented and locally validated; publication pending
 **Target:** Pi `0.84.2`, Node.js `>=22.19`  
 **Package name:** `pi-codex-ring`
+
+## v0.3 GPT Image 2.5 addendum
+
+The `image_gen` tool accepts an optional, strict `model` choice. It defaults to the dated GPT Image 2.5 Flare snapshot for most work and lets the agent select the dated Sunburst snapshot when maximum generation or editing precision matters. The prior `gpt-image-2` model is no longer exposed. Size, quality, background, output format, and output count remain fixed to the Codex endpoint's automatic PNG contract.
+
+Both `gpt-image-2.5-flare-2026-09-08` and `gpt-image-2.5-sunburst-2026-09-08` completed live generation requests through the subscription-backed Codex endpoint on September 8, 2026 and returned valid PNG artifacts. A model failure still never triggers fallback to another image model or replay after an ambiguous POST.
 
 ## v0.2 image-generation addendum
 

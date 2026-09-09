@@ -16,7 +16,7 @@ Prefer direct project-file editing when the requested result is an SVG, a code-n
 
 ## Select an operation
 
-- **New image:** pass only `prompt`.
+- **New image:** pass `prompt` and, when needed, `model`.
 - **Edit local images:** pass one to five absolute paths in `referenced_image_paths`.
 - **Edit conversation images:** pass `num_last_images_to_include` when a target has no stable local path. Use the smallest count that includes every target, up to five.
 - Never combine `referenced_image_paths` with `num_last_images_to_include`.
@@ -24,6 +24,17 @@ Prefer direct project-file editing when the requested result is an SVG, a code-n
 - For multiple distinct assets or variants, make one `image_gen` call per asset or variant.
 
 Treat a request as an edit when the user wants to preserve parts of an existing image while changing other parts. Treat images supplied only for style, mood, composition, or subject reference according to the user's stated intent; identify each image's role in the prompt.
+
+## Choose the image model
+
+Choose the model at call time. The `model` argument is optional; omitting it selects `gpt-image-2.5-flare-2026-09-08`.
+
+- Use **Flare** (`gpt-image-2.5-flare-2026-09-08`) for most work: fast, high-quality generation and editing, drafts, social or creator content, product experiences, visual prototyping, and multiple independent assets.
+- Use **Sunburst** (`gpt-image-2.5-sunburst-2026-09-08`) when maximum precision materially matters: polished production assets, exact localized edits, complex layouts, identity-sensitive work, or multi-step edits that must preserve unchanged details.
+- Follow an explicit user model choice. When the request does not justify Sunburst, prefer Flare.
+- Never retry a failed image request with the other model. Report the failure because the original POST may have consumed image quota.
+
+Do not pass other model IDs.
 
 ## Workflow
 

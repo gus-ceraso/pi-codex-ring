@@ -3,7 +3,12 @@ import { mergeHeaders, sanitizeErrorMessage } from "./account.ts";
 import { parseCapturedHttpError, parseRateLimitHeaders } from "./quota.ts";
 import { PACKAGE_VERSION, type CapturedHttpError, type QuotaObservation, type ResolvedAccount } from "./types.ts";
 
-export const IMAGE_MODEL = "gpt-image-2";
+export const IMAGE_MODELS = [
+	"gpt-image-2.5-flare-2026-09-08",
+	"gpt-image-2.5-sunburst-2026-09-08",
+] as const;
+export type ImageModel = (typeof IMAGE_MODELS)[number];
+export const DEFAULT_IMAGE_MODEL: ImageModel = "gpt-image-2.5-flare-2026-09-08";
 export const IMAGE_RESOURCE_ID = "image_gen";
 export const MAX_GENERATED_IMAGE_BYTES = 32 * 1024 * 1024;
 const MAX_GENERATED_IMAGE_BASE64_BYTES = Math.ceil(MAX_GENERATED_IMAGE_BYTES / 3) * 4;
@@ -14,12 +19,13 @@ const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0
 
 export interface ImageRequest {
 	prompt: string;
+	model: ImageModel;
 	images?: string[];
 }
 
 export interface ImageResponseMetadata {
 	background?: "transparent" | "opaque" | "auto";
-	quality?: "low" | "medium" | "high" | "auto";
+	quality?: "low" | "medium" | "high" | "xhigh" | "max" | "auto";
 	size?: string;
 	requestId?: string;
 }
@@ -148,7 +154,7 @@ function requestBody(request: ImageRequest): Record<string, unknown> {
 		...(request.images ? { images: request.images.map((imageUrl) => ({ image_url: imageUrl })) } : {}),
 		prompt: request.prompt,
 		background: "auto",
-		model: IMAGE_MODEL,
+		model: request.model,
 		quality: "auto",
 		size: "auto",
 	};
@@ -166,7 +172,7 @@ function parseSuccess(text: string, headers: Headers): GeneratedImage {
 	const base64 = first.b64_json.trim();
 	const bytes = decodeGeneratedPng(base64);
 	const background = metadataValue(root.background, ["transparent", "opaque", "auto"] as const);
-	const quality = metadataValue(root.quality, ["low", "medium", "high", "auto"] as const);
+	const quality = metadataValue(root.quality, ["low", "medium", "high", "xhigh", "max", "auto"] as const);
 	const size = responseString(root.size, 64);
 	const requestId = responseString(headers.get("x-codex-imagegen-request-id"), 1024);
 	const metadata: ImageResponseMetadata = {
