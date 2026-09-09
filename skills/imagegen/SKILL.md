@@ -31,8 +31,9 @@ Choose the model at call time. The `model` argument is optional; omitting it sel
 
 - Use **Flare** (`gpt-image-2.5-flare-2026-09-08`) for most work: fast, high-quality generation and editing, drafts, social or creator content, product experiences, visual prototyping, and multiple independent assets.
 - Use **Sunburst** (`gpt-image-2.5-sunburst-2026-09-08`) when maximum precision materially matters: polished production assets, exact localized edits, complex layouts, identity-sensitive work, or multi-step edits that must preserve unchanged details.
-- Follow an explicit user model choice. When the request does not justify Sunburst, prefer Flare.
-- Never retry a failed image request with the other model. Report the failure because the original POST may have consumed image quota.
+- Use **GPT Image 2** (`gpt-image-2-2026-04-21`) when the user explicitly requests that model.
+- Follow an explicit supported model choice. Otherwise, prefer Flare unless the request justifies Sunburst.
+- Never retry a failed image request with another model. Report the failure because the original POST may have consumed image quota.
 
 Do not pass other model IDs.
 

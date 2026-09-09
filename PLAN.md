@@ -4,11 +4,11 @@
 **Target:** Pi `0.84.2`, Node.js `>=22.19`  
 **Package name:** `pi-codex-ring`
 
-## v0.3 GPT Image 2.5 addendum
+## v0.3 image-model selection addendum
 
-The `image_gen` tool accepts an optional, strict `model` choice. It defaults to the dated GPT Image 2.5 Flare snapshot for most work and lets the agent select the dated Sunburst snapshot when maximum generation or editing precision matters. The prior `gpt-image-2` model is no longer exposed. Size, quality, background, output format, and output count remain fixed to the Codex endpoint's automatic PNG contract.
+The `image_gen` tool accepts an optional, strict `model` choice. It supports the dated GPT Image 2 snapshot `gpt-image-2-2026-04-21` and the dated GPT Image 2.5 Flare and Sunburst snapshots. It defaults to Flare for most work, selects Sunburst when maximum generation or editing precision matters, and selects GPT Image 2 only when explicitly requested. Size, quality, background, output format, and output count remain fixed to the Codex endpoint's automatic PNG contract.
 
-Both `gpt-image-2.5-flare-2026-09-08` and `gpt-image-2.5-sunburst-2026-09-08` completed live generation requests through the subscription-backed Codex endpoint on September 8, 2026 and returned valid PNG artifacts. A model failure still never triggers fallback to another image model or replay after an ambiguous POST.
+Both `gpt-image-2.5-flare-2026-09-08` and `gpt-image-2.5-sunburst-2026-09-08` completed live generation requests through the subscription-backed Codex endpoint on September 8, 2026 and returned valid PNG artifacts. Automated tests cover the GPT Image 2 allowlist addition; no live request was made for that snapshot. A model failure still never triggers fallback to another image model or replay after an ambiguous POST.
 
 ## v0.2 image-generation addendum
 

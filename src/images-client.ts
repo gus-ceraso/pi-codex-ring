@@ -6,6 +6,7 @@ import { PACKAGE_VERSION, type CapturedHttpError, type QuotaObservation, type Re
 export const IMAGE_MODELS = [
 	"gpt-image-2.5-flare-2026-09-08",
 	"gpt-image-2.5-sunburst-2026-09-08",
+	"gpt-image-2-2026-04-21",
 ] as const;
 export type ImageModel = (typeof IMAGE_MODELS)[number];
 export const DEFAULT_IMAGE_MODEL: ImageModel = "gpt-image-2.5-flare-2026-09-08";

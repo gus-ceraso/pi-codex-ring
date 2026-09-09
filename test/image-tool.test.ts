@@ -39,6 +39,7 @@ describe("image tool", () => {
 					enum: [
 						"gpt-image-2.5-flare-2026-09-08",
 						"gpt-image-2.5-sunburst-2026-09-08",
+						"gpt-image-2-2026-04-21",
 					],
 					default: "gpt-image-2.5-flare-2026-09-08",
 				},
@@ -76,7 +77,7 @@ describe("image tool", () => {
 		expect(await readFile(expectedPath, "base64")).toBe(PNG_BASE64);
 	});
 
-	it("forwards an explicit Sunburst selection", async () => {
+	it("forwards an explicit GPT Image 2 selection", async () => {
 		const agentDir = await mkdtemp(join(tmpdir(), "codex-ring-tool-"));
 		directories.push(agentDir);
 		const generated: GeneratedImage = {
@@ -96,16 +97,16 @@ describe("image tool", () => {
 		} as unknown as RingRouter;
 		const tool = createImageTool(router, { request } as unknown as ImagesClient, agentDir);
 		const result = await tool.execute("call-2", {
-			prompt: "a precise fox edit",
-			model: "gpt-image-2.5-sunburst-2026-09-08",
+			prompt: "a fox",
+			model: "gpt-image-2-2026-04-21",
 		}, undefined, undefined, context("/project"));
 
 		expect(request).toHaveBeenCalledTimes(1);
 		expect(request.mock.calls[0]?.[2]).toEqual({
-			prompt: "a precise fox edit",
-			model: "gpt-image-2.5-sunburst-2026-09-08",
+			prompt: "a fox",
+			model: "gpt-image-2-2026-04-21",
 		});
-		expect(result.details.model).toBe("gpt-image-2.5-sunburst-2026-09-08");
+		expect(result.details.model).toBe("gpt-image-2-2026-04-21");
 	});
 
 	it("rejects conflicting edit selectors before routing", async () => {

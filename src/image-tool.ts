@@ -24,7 +24,7 @@ const ImageToolParameters = Type.Object(
 			description: "A detailed description of the image to generate or the edits to make.",
 		}),
 		model: Type.Optional(StringEnum(IMAGE_MODELS, {
-			description: "Image model. Omit for gpt-image-2.5-flare-2026-09-08, the fast default for most work. Use gpt-image-2.5-sunburst-2026-09-08 for maximum generation and editing precision.",
+			description: "Image model. Omit for gpt-image-2.5-flare-2026-09-08, the fast default for most work. Use gpt-image-2.5-sunburst-2026-09-08 for maximum generation and editing precision. Select gpt-image-2-2026-04-21 when explicitly requested.",
 			default: DEFAULT_IMAGE_MODEL,
 		})),
 		referenced_image_paths: Type.Optional(Type.Array(Type.String(), {
@@ -117,11 +117,11 @@ export function createImageTool(
 	return defineTool({
 		name: "image_gen",
 		label: "Image generation",
-		description: "Generate a new image or edit existing images with OpenAI image generation. The optional model defaults to Flare; select Sunburst for maximum precision. To generate a new image, omit both image selectors. To edit local files, provide referenced_image_paths with up to five absolute paths. To edit recent conversation images, provide num_last_images_to_include. Never combine the two selectors. Prefer absolute paths when stable files exist. For multiple assets or variants, call image_gen once per image. Generated PNGs are returned inline and saved automatically; there is no output-path argument.",
+		description: "Generate a new image or edit existing images with OpenAI image generation. The optional model defaults to Flare; select Sunburst for maximum precision or GPT Image 2 when explicitly requested. To generate a new image, omit both image selectors. To edit local files, provide referenced_image_paths with up to five absolute paths. To edit recent conversation images, provide num_last_images_to_include. Never combine the two selectors. Prefer absolute paths when stable files exist. For multiple assets or variants, call image_gen once per image. Generated PNGs are returned inline and saved automatically; there is no output-path argument.",
 		promptSnippet: "Generate or edit raster images with selectable OpenAI image models",
 		promptGuidelines: [
 			"Use image_gen for requested raster image generation and editing; omit both image selectors for a new image.",
-			"For image_gen, omit model to use gpt-image-2.5-flare-2026-09-08 for most work; select gpt-image-2.5-sunburst-2026-09-08 when maximum generation or editing precision matters.",
+			"For image_gen, omit model to use gpt-image-2.5-flare-2026-09-08 for most work; select gpt-image-2.5-sunburst-2026-09-08 when maximum generation or editing precision matters, and honor explicit requests for gpt-image-2-2026-04-21.",
 			"For image_gen edits, use referenced_image_paths for stable absolute paths, or num_last_images_to_include for recent pathless images, but never both.",
 			"Use one image_gen call per requested asset or variant, and do not reconfirm unless a required image is missing.",
 		],

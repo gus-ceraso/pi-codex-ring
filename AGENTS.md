@@ -6,7 +6,7 @@
 - Pi's model registry owns OAuth credentials and refresh. Never read or write `auth.json` directly.
 - `RingRouter` owns sticky account selection and failover state. Account-bound operations must go through it rather than resolving credentials independently.
 - Persist only redacted quota metadata in `codex-ring-state.json`; never persist bearer tokens or raw account/user IDs.
-- Image generation uses the Codex subscription image endpoints and only the live-tested GPT Image 2.5 snapshots. Flare is the default; the agent selects Sunburst when maximum precision matters. Image generation does not support API keys or silently replay ambiguous failures.
+- Image generation uses the Codex subscription image endpoints and only the dated snapshots in `IMAGE_MODELS`. Flare is the default; the agent selects Sunburst when maximum precision matters and GPT Image 2 only when explicitly requested. Image generation does not support API keys or silently replay ambiguous failures.
 - Generated images belong under `<agent-dir>/image_gen/<normalized-cwd>/<session-id>/<tool-call-id>.png` and must not overwrite existing files.
 
 ## Invariants

@@ -88,7 +88,7 @@ The exact models mirror the built-in Codex catalog in the installed Pi version.
 
 ## Image generation
 
-The globally available `image_gen` tool uses GPT Image 2.5 through the same ChatGPT/Codex OAuth accounts. The agent selects the image model for each call; omitting `model` uses Flare:
+The globally available `image_gen` tool uses dated GPT Image 2 and GPT Image 2.5 snapshots through the same ChatGPT/Codex OAuth accounts. The agent selects the image model for each call; omitting `model` uses Flare:
 
 ```json
 {
@@ -96,14 +96,15 @@ The globally available `image_gen` tool uses GPT Image 2.5 through the same Chat
 }
 ```
 
-The accepted, live-tested models are:
+The accepted models are:
 
 | Model | Use |
 |---|---|
 | `gpt-image-2.5-flare-2026-09-08` | Default for fast, high-quality everyday generation and editing |
 | `gpt-image-2.5-sunburst-2026-09-08` | Maximum precision for polished generation and exact or multi-step edits |
+| `gpt-image-2-2026-04-21` | GPT Image 2 snapshot for requests that require this exact model |
 
-A user can request either model explicitly. Otherwise, the agent uses Sunburst when precision materially matters and Flare for most work:
+A user can request any model explicitly. Without an explicit choice, the agent uses Sunburst when precision materially matters and Flare for most work:
 
 ```json
 {
@@ -131,7 +132,7 @@ To edit pathless images already in the active conversation, use the smallest req
 }
 ```
 
-Do not combine the two image selectors. An omitted or empty path list creates a new image. `model` is optional and strictly limited to the two IDs above. Size, quality, output format, masks, and output path are intentionally not tool arguments; they use the Codex endpoint's automatic defaults.
+Do not combine the two image selectors. An omitted or empty path list creates a new image. `model` is optional and strictly limited to the three IDs above. Size, quality, output format, masks, and output path are intentionally not tool arguments; they use the Codex endpoint's automatic defaults.
 
 Generated PNGs appear inline and are saved without overwriting existing files:
 
